@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EngiCalc Pro: Scientific Calculator for Engineers</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://unpkg.com/lucide@0.378.0/dist/umd/lucide.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:#020617;color:#e2e8f0;
+    background-image:radial-gradient(700px 400px at 85% -5%,rgba(16,185,129,.14),transparent),radial-gradient(600px 400px at 0% 0%,rgba(34,211,238,.08),transparent)}
+  .glass{background:rgba(15,23,42,.65);backdrop-filter:blur(12px);border:1px solid #1e293b;border-radius:16px}
+  .inp{width:100%;background:#0b1220;border:1px solid #1e293b;border-radius:10px;padding:.55rem .7rem;font:500 .9rem ui-monospace,monospace;outline:none;transition:border .15s}
+  .inp:focus{border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.12)}
+  .lbl{font-size:.75rem;color:#94a3b8;font-weight:600;margin-bottom:.3rem;display:block}
+  .btn{padding:.55rem .9rem;border-radius:10px;font-size:.85rem;font-weight:600;background:#0f172a;border:1px solid #1e293b;transition:all .15s}
+  .btn:hover{border-color:#34d399;color:#6ee7b7}.btn:active{transform:scale(.97)}
+  .btn-go{background:#10b981;color:#022c22;border-color:#10b981}.btn-go:hover{background:#34d399;color:#022c22}
+  .chip{padding:.3rem .8rem;border-radius:99px;border:1px solid #1e293b;font-size:.8rem;font-weight:600;color:#94a3b8}
+  .chip.on{background:#10b981;color:#022c22;border-color:#10b981}
+  .key{padding:.75rem 0;border-radius:10px;background:#0b1220;border:1px solid #1e293b;font-size:.85rem;font-weight:600;transition:all .12s}
+  .key:hover{border-color:#34d399}.key:active{transform:scale(.94)}
+  .key.fn{color:#67e8f9}.key.op{color:#fbbf24}.key.eq{background:#10b981;color:#022c22}
+  .tab{display:flex;align-items:center;gap:.5rem;padding:.55rem 1rem;border-radius:10px;font-weight:600;font-size:.9rem;color:#94a3b8;white-space:nowrap;transition:all .15s}
+  .tab.on{background:#0f172a;color:#6ee7b7;box-shadow:inset 0 0 0 1px #065f46}
+  .katex{color:#e2e8f0}
+  dialog::backdrop{background:rgba(2,6,23,.8);backdrop-filter:blur(4px)}
+  #toast div{animation:up .25s ease}@keyframes up{from{opacity:0;transform:translateY(8px)}}
+  :focus-visible{outline:2px solid #34d399;outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="min-h-screen">
+<div class="max-w-6xl mx-auto px-4 py-5">
+
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-400 grid place-items-center text-slate-950"><i data-lucide="sigma"></i></div>
+      <div><h1 class="font-extrabold text-xl leading-none">EngiCalc Pro</h1><p class="text-xs text-slate-400 mt-1">Scientific calculator for engineering students</p></div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="angleBtn" data-act="angle" class="chip on" title="Toggle angle unit">DEG</button>
+      <span class="hidden sm:inline text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-800 text-emerald-300 bg-emerald-950/50">EngiCalc Pro v2.4</span>
+      <button data-act="modal" class="btn btn-go flex items-center gap-1.5"><i data-lucide="download" class="w-4 h-4"></i>Get offline bundle</button>
+    </div>
+  </header>
+
+  <nav id="nav" class="mt-5 flex gap-1 overflow-x-auto pb-1" aria-label="Calculator modes"></nav>
+
+  <main class="mt-4 grid lg:grid-cols-2 gap-4 items-start">
+    <section class="glass p-5">
+      <div id="panel"></div>
+      <div class="mt-5 pt-4 border-t border-slate-800">
+        <p class="lbl">Live formula</p>
+        <div id="live" class="overflow-x-auto min-h-[3rem]"></div>
+      </div>
+    </section>
+
+    <section class="glass p-5 lg:sticky lg:top-4" aria-live="polite">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="font-bold">Result</h2>
+        <div class="flex gap-2">
+          <button data-act="copyTex" class="btn flex items-center gap-1.5"><i data-lucide="code" class="w-4 h-4"></i>Copy LaTeX</button>
+          <button data-act="copyAll" class="btn flex items-center gap-1.5"><i data-lucide="clipboard" class="w-4 h-4"></i>Copy solution</button>
+        </div>
+      </div>
+      <div id="formula" class="overflow-x-auto py-6 text-xl min-h-[6rem] text-center"><p class="text-sm text-slate-500">Run a calculation to see the textbook result here.</p></div>
+      <p id="numeric" class="font-mono text-sm text-emerald-300 whitespace-pre-wrap break-all"></p>
+      <details id="steps" class="mt-4 rounded-xl border border-slate-800 bg-slate-950/50">
+        <summary class="cursor-pointer px-4 py-3 font-semibold text-sm flex items-center gap-2"><i data-lucide="list-checks" class="w-4 h-4 text-cyan-300"></i>Step-by-step working</summary>
+        <ol id="stepList" class="px-4 pb-4 space-y-3"><li class="text-sm text-slate-500">Working notes appear after you calculate.</li></ol>
+      </details>
+    </section>
+  </main>
+  <p class="mt-6 text-xs text-slate-500 text-center">All calculations run in your browser. Nothing is sent to a server.</p>
+</div>
+
+<dialog id="modal" class="glass p-0 w-[min(92vw,520px)] text-slate-100 m-auto">
+  <div class="p-6">
+    <h3 class="text-xl font-extrabold">Take EngiCalc Pro with you</h3>
+    <p class="text-sm text-slate-400 mt-1">Works offline in exams prep, labs and on flights.</p>
+    <div class="grid sm:grid-cols-2 gap-3 mt-5">
+      <div class="rounded-xl border border-slate-700 p-4"><p class="font-bold">Offline bundle</p><p class="text-3xl font-extrabold mt-1">$29</p><p class="text-xs text-slate-400 mt-2">Installable PWA, bundled libraries, lifetime updates.</p></div>
+      <div class="rounded-xl border border-emerald-600 bg-emerald-950/30 p-4"><p class="font-bold">Source license</p><p class="text-3xl font-extrabold mt-1">$149</p><p class="text-xs text-slate-400 mt-2">Full source, white-label rights, commercial use.</p></div>
+    </div>
+    <div class="flex justify-end gap-2 mt-6">
+      <button data-act="closeModal" class="btn">Not now</button>
+      <a id="buyLink" target="_blank" rel="noopener" class="btn btn-go">Buy now</a>
+    </div>
+  </div>
+</dialog>
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 space-y-2 w-[min(92vw,420px)]"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   EngiCalc Pro. Sections: config, helpers, panels, actions, init.
+   ===================================================================== */
+const CONFIG = { buyUrl: 'https://example.com/buy', simpsonN: 2000 };
+const $id = i => document.getElementById(i);
+const state = { mode: 'matrix', n: 3, deg: 2, angle: 'deg', ans: 0, out: null };
+
+/* ---------- Formatting ---------- */
+const clean = x => Math.abs(x) < 1e-12 ? 0 : +x.toPrecision(8);
+function fmt(x) {
+  if (math.isComplex(x)) {
+    const re = clean(x.re), im = x.im, tiny = Math.abs(im) < 1e-9 * Math.max(1, Math.abs(x.re));
+    if (tiny) return String(re);
+    const i = clean(Math.abs(im));
+    return (re === 0 ? '' : re) + (im < 0 ? '-' : (re === 0 ? '' : '+')) + (i === 1 ? '' : i) + 'i';
+  }
+  return String(clean(x));
+}
+const texNum = x => fmt(x).replace(/e([+-]?\d+)/, (m, p) => `\\times 10^{${+p}}`);
+const texMat = M => `\\begin{bmatrix}${M.map(r => r.map(texNum).join('&')).join('\\\\')}\\end{bmatrix}`;
+const txtMat = M => M.map(r => r.map(fmt).join('\t')).join('\n');
+const tx = s => math.parse(s).toTex({ parenthesis: 'auto' });
+function polyTex(c, v) {                       // coefficients high -> low
+  const n = c.length - 1; let out = '';
+  c.forEach((k, i) => {
+    if (Math.abs(k) < 1e-12) return;
+    const p = n - i, mag = Math.abs(k);
+    const body = (mag === 1 && p > 0 ? '' : texNum(mag)) + (p > 1 ? `${v}^{${p}}` : p === 1 ? v : '');
+    out += (out ? (k < 0 ? ' - ' : ' + ') : (k < 0 ? '-' : '')) + body;
+  });
+  return out || '0';
+}
+function renderTex(el, tex, display) {
+  try { katex.render(tex, el, { displayMode: display, throwOnError: false }); } catch (e) { el.textContent = tex; }
+}
+
+/* ---------- Input reading & validation ---------- */
+function num(id) {
+  const raw = $id(id).value.trim();
+  if (!raw) throw new Error('Please fill in every field.');
+  let v; try { v = math.evaluate(raw); } catch (e) { throw new Error(`"${raw}" is not a valid number.`); }
+  if (typeof v !== 'number' || !isFinite(v)) throw new Error(`"${raw}" is not a finite real number (check for division by zero).`);
+  return v;
+}
+const readMat = nm => Array.from({ length: state.n }, (_, i) => Array.from({ length: state.n }, (_, j) => num(`${nm}${i}${j}`)));
+function compileF() {
+  const s = $id('fx').value.trim(); if (!s) throw new Error('Enter a function f(x).');
+  const node = math.parse(s), code = node.compile();
+  return { s, node, f: x => {
+    const y = code.evaluate({ x });
+    if (typeof y !== 'number' || !isFinite(y)) throw new Error(`f(x) is undefined or infinite at x = ${clean(x)}.`);
+    return y; } };
+}
+const toRad = t => state.angle === 'deg' ? t * Math.PI / 180 : t;
+const fromRad = t => state.angle === 'deg' ? t * 180 / Math.PI : t;
+const unitTex = () => state.angle === 'deg' ? '^{\\circ}' : '\\,\\text{rad}';
+
+/* ---------- UI helpers ---------- */
+function toast(msg, kind = 'ok') {
+  const d = document.createElement('div');
+  d.className = `px-4 py-3 rounded-xl text-sm font-medium shadow-xl border ${kind === 'err' ? 'bg-rose-950 border-rose-700 text-rose-100' : 'bg-emerald-950 border-emerald-700 text-emerald-100'}`;
+  d.textContent = msg; $id('toast').appendChild(d); setTimeout(() => d.remove(), 3200);
+}
+const icons = () => window.lucide && lucide.createIcons();
+function show(o) {                              // o = {tex, text, steps:[[label, tex]]}
+  state.out = o;
+  renderTex($id('formula'), o.tex, true);
+  $id('numeric').textContent = o.text;
+  $id('stepList').innerHTML = o.steps.map(s => `<li><p class="text-xs text-slate-400">${s[0]}</p><div class="st overflow-x-auto"></div></li>`).join('');
+  document.querySelectorAll('#stepList .st').forEach((d, i) => renderTex(d, o.steps[i][1], false));
+  $id('steps').open = true;
+}
+async function copy(text, ok) {
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+  toast(ok);
+}
+
+/* ---------- Panels (HTML builders) ---------- */
+const field = (id, label, val) => `<div><label class="lbl" for="${id}">${label}</label><input id="${id}" class="inp" value="${val}" autocomplete="off"></div>`;
+const chips = (items, cur, act) => `<div class="flex gap-2 flex-wrap">${items.map(([v, l]) => `<button data-act="${act}" data-v="${v}" class="chip ${v == cur ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const go = (act, label, cls = 'btn') => `<button data-act="${act}" class="${cls}">${label}</button>`;
+const vec = (p, vals) => `<div class="grid grid-cols-3 gap-2">${['x', 'y', 'z'].map((c, i) => field(p + c, `${p}${c}`, vals[i])).join('')}</div>`;
+
+const build = {
+  matrix() {
+    const n = state.n;
+    const grid = (nm, def) => `<div><p class="lbl">Matrix ${nm}</p><div class="grid gap-1.5" style="grid-template-columns:repeat(${n},minmax(0,1fr))">${
+      Array.from({ length: n * n }, (_, k) => { const i = k / n | 0, j = k % n;
+        return `<input id="${nm}${i}${j}" value="${def(i, j)}" class="inp text-center !px-1" inputmode="decimal" aria-label="${nm} row ${i + 1} col ${j + 1}">`; }).join('')}</div></div>`;
+    return `<div class="flex items-center justify-between mb-4"><h3 class="font-bold">Matrix engine</h3>${chips([[2, '2×2'], [3, '3×3'], [4, '4×4']], n, 'size')}</div>
+      <div class="grid sm:grid-cols-2 gap-4">${grid('A', (i, j) => i === j ? 2 : Math.abs(i - j) === 1 ? 1 : 0)}${grid('B', (i, j) => i === j ? 1 : i < j ? 1 : 0)}</div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-5">${go('det', 'det(A)')}${go('inv', 'A⁻¹')}${go('tr', 'Aᵀ')}${go('mul', 'A × B')}${go('eig', 'Eigenvalues', 'btn col-span-2 sm:col-span-2 btn-go')}</div>`;
+  },
+  calculus() {
+    const q = state.deg === 3;
+    return `<h3 class="font-bold mb-3">Calculus &amp; numerical analysis</h3>
+      ${field('fx', 'f(x)  (trig in radians)', 'x^2 * sin(x)')}
+      <div class="grid grid-cols-3 gap-2 mt-3">${field('la', 'Lower a', '0')}${field('lb', 'Upper b', 'pi')}${field('dc', 'Derivative at x = c', '1')}</div>
+      <div class="flex gap-2 mt-3">${go('integral', '∫ f(x) dx', 'btn btn-go')}${go('deriv', 'd/dx at c', 'btn btn-go')}</div>
+      <div class="flex items-center justify-between mt-6 mb-3"><h3 class="font-bold">Polynomial roots</h3>${chips([[2, 'Quadratic'], [3, 'Cubic']], state.deg, 'deg')}</div>
+      <div class="grid ${q ? 'grid-cols-4' : 'grid-cols-3'} gap-2">${field('qa', 'a', '1')}${field('qb', 'b', q ? '-6' : '-3')}${field('qc', 'c', q ? '11' : '2')}${q ? field('qd', 'd', '-6') : ''}</div>
+      <div class="mt-3">${go('roots', 'Solve roots', 'btn btn-go')}</div>`;
+  },
+  complex() {
+    return `<h3 class="font-bold mb-3">Complex numbers &amp; vectors <span class="text-xs text-slate-400 font-normal">(angle unit: <b id="unitLbl">${state.angle.toUpperCase()}</b>)</span></h3>
+      <p class="lbl">Polar → rectangular</p>
+      <div class="grid grid-cols-3 gap-2 items-end">${field('pr', 'r', '5')}${field('pt', 'θ', '53.13')}${go('p2r', 'r∠θ → a+bi')}</div>
+      <p class="lbl mt-5">Rectangular → polar</p>
+      <div class="grid grid-cols-3 gap-2 items-end">${field('ra', 'a', '3')}${field('rb', 'b', '4')}${go('r2p', 'a+bi → r∠θ')}</div>
+      <p class="lbl mt-5">3D vectors</p>${vec('u', [1, 2, 3])}<div class="mt-2">${vec('v', [4, 5, 6])}</div>
+      <div class="mt-3">${go('vec', 'Dot &amp; cross product', 'btn btn-go')}</div>`;
+  },
+  sci() {
+    const K = [['sin', 'sin(', 'fn'], ['cos', 'cos(', 'fn'], ['tan', 'tan(', 'fn'], ['ln', 'log(', 'fn'], ['log', 'log10(', 'fn'],
+      ['sin⁻¹', 'asin(', 'fn'], ['cos⁻¹', 'acos(', 'fn'], ['tan⁻¹', 'atan(', 'fn'], ['√', 'sqrt(', 'fn'], ['x²', '^2', 'fn'],
+      ['nPr', 'nPr(', 'fn'], ['nCr', 'nCr(', 'fn'], ['n!', '!', 'fn'], ['π', 'pi', 'fn'], ['e', 'e', 'fn'],
+      ['h', 'h', 'fn'], ['c', 'c', 'fn'], ['xʸ', '^', 'fn'], ['(', '('], [')', ')'],
+      ['7', '7'], ['8', '8'], ['9', '9'], ['÷', '/', 'op'], ['⌫', 'DEL', 'op'],
+      ['4', '4'], ['5', '5'], ['6', '6'], ['×', '*', 'op'], ['AC', 'AC', 'op'],
+      ['1', '1'], ['2', '2'], ['3', '3'], ['−', '-', 'op'], ['Ans', 'Ans', 'fn'],
+      ['0', '0'], ['.', '.'], [',', ','], ['+', '+', 'op'], ['=', '=', 'eq']];
+    return `<h3 class="font-bold mb-3">Scientific mode</h3>
+      <input id="sci" class="inp !text-lg !py-3" placeholder="e.g. sin(30) + nCr(5,2)" inputmode="none" autocomplete="off" spellcheck="false">
+      <div class="grid grid-cols-5 gap-2 mt-3">${K.map(k => `<button data-act="key" data-k="${k[1]}" class="key ${k[2] || ''}">${k[0]}</button>`).join('')}</div>
+      <p class="text-xs text-slate-500 mt-3">Constants: h = 6.626×10⁻³⁴ J·s, c = 299 792 458 m/s.</p>`;
+  }
+};
+const TABS = [['matrix', 'Matrix', 'grid-3x3'], ['calculus', 'Calculus', 'sigma'], ['complex', 'Complex & Vector', 'orbit'], ['sci', 'Scientific', 'calculator']];
+
+/* ---------- Live preview (KaTeX) ---------- */
+const previews = {
+  matrix: () => {
+    const c = id => { try { return texNum(num(id)); } catch (e) { return '\\square'; } };
+    const M = nm => `\\begin{bmatrix}${Array.from({ length: state.n }, (_, i) => Array.from({ length: state.n }, (_, j) => c(`${nm}${i}${j}`)).join('&')).join('\\\\')}\\end{bmatrix}`;
+    return `A=${M('A')},\\;\\; B=${M('B')}`;
+  },
+  calculus: () => `\\int_{${tx($id('la').value)}}^{${tx($id('lb').value)}} ${tx($id('fx').value)}\\,dx \\;\\;\\;\\; \\frac{d}{dx}\\left[${tx($id('fx').value)}\\right]_{x=${tx($id('dc').value)}}`,
+  complex: () => `${tx($id('pr').value)}\\angle ${tx($id('pt').value)}${unitTex()}`,
+  sci: () => tx($id('sci').value)
+};
+function preview() {
+  const el = $id('live'); if (!el) return;
+  let t = ''; try { t = previews[state.mode](); } catch (e) { t = ''; }
+  if (t) renderTex(el, t, true); else el.innerHTML = '<span class="text-sm text-slate-600">Your formula renders here as you type.</span>';
+}
+function render() {
+  $id('nav').innerHTML = TABS.map(t => `<button data-act="tab" data-v="${t[0]}" class="tab ${t[0] === state.mode ? 'on' : ''}"><i data-lucide="${t[2]}" class="w-4 h-4"></i>${t[1]}</button>`).join('');
+  $id('panel').innerHTML = build[state.mode](); icons(); preview();
+}
+
+/* ---------- Math helpers ---------- */
+function charPoly(A) {                          // Faddeev-LeVerrier, returns [1, c_{n-1}, ..., c_0]
+  const n = A.length, I = math.identity(n).toArray(); let M = A.map(r => r.map(() => 0)); const c = [1];
+  for (let k = 1; k <= n; k++) {
+    M = math.add(math.multiply(A, M), math.multiply(c[k - 1], I));
+    c.push(-math.trace(math.multiply(A, M)) / k);
+  }
+  return c.map(x => Math.abs(x) < 1e-9 ? 0 : +x.toPrecision(10));
+}
+function sciScope() {
+  const r = state.angle === 'deg';
+  const inR = x => r ? math.multiply(x, Math.PI / 180) : x, outD = x => r ? math.multiply(x, 180 / Math.PI) : x;
+  return { sin: x => math.sin(inR(x)), cos: x => math.cos(inR(x)), tan: x => math.tan(inR(x)),
+    asin: x => outD(math.asin(x)), acos: x => outD(math.acos(x)), atan: x => outD(math.atan(x)),
+    h: 6.62607015e-34, c: 299792458, Ans: state.ans,
+    nPr: (n, k) => math.permutations(n, k), nCr: (n, k) => math.combinations(n, k) };
+}
+
+/* ---------- Actions ---------- */
+const act = {
+  tab: b => { state.mode = b.dataset.v; render(); },
+  size: b => { state.n = +b.dataset.v; render(); },
+  deg: b => { state.deg = +b.dataset.v; render(); },
+  angle: () => { state.angle = state.angle === 'deg' ? 'rad' : 'deg'; $id('angleBtn').textContent = state.angle.toUpperCase(); const u = $id('unitLbl'); if (u) u.textContent = state.angle.toUpperCase(); preview(); },
+  modal: () => $id('modal').showModal(),
+  closeModal: () => $id('modal').close(),
+  copyTex: () => state.out ? copy(state.out.tex, 'LaTeX copied') : toast('Nothing to copy yet. Run a calculation first.', 'err'),
+  copyAll: () => state.out ? copy(state.out.text + '\n\nWorking:\n' + state.out.steps.map(s => `- ${s[0]}: ${s[1]}`).join('\n'), 'Solution copied') : toast('Nothing to copy yet. Run a calculation first.', 'err'),
+
+  /* --- Matrix --- */
+  det() {
+    const A = readMat('A'), d = math.det(A);
+    const terms = A[0].map((a, j) => `(${j % 2 ? '-' : '+'}1)(${texNum(a)})(${texNum(math.det(A.slice(1).map(r => r.filter((_, k) => k !== j))))})`);
+    show({ tex: `\\det(A)=${texNum(d)}`, text: `det(A) = ${fmt(d)}`,
+      steps: [['Matrix', `A=${texMat(A)}`], ['Cofactor expansion along row 1', `\\det A=\\sum_j (-1)^{1+j}a_{1j}M_{1j}=${terms.join('\\,')}`], ['Result', `\\det A=${texNum(d)}`]] });
+  },
+  inv() {
+    const A = readMat('A'), d = math.det(A);
+    if (Math.abs(d) < 1e-10) throw new Error('Matrix is singular (det = 0). The inverse does not exist.');
+    const Ai = math.inv(A);
+    show({ tex: `A^{-1}=${texMat(Ai)}`, text: `A⁻¹ =\n${txtMat(Ai)}`,
+      steps: [['Determinant (must be non-zero)', `\\det A=${texNum(d)}`], ['Formula', `A^{-1}=\\frac{1}{\\det A}\\,\\operatorname{adj}(A)`], ['Check: A · A⁻¹ = I', texMat(math.multiply(A, Ai))]] });
+  },
+  tr() {
+    const A = readMat('A'), T = math.transpose(A);
+    show({ tex: `A^{T}=${texMat(T)}`, text: `Aᵀ =\n${txtMat(T)}`, steps: [['Rule', `(A^T)_{ij}=A_{ji}`], ['Original', texMat(A)], ['Transposed', texMat(T)]] });
+  },
+  mul() {
+    const A = readMat('A'), B = readMat('B'), C = math.multiply(A, B);
+    const ex = A[0].map((a, k) => `${texNum(a)}\\cdot${texNum(B[k][0])}`).join('+');
+    show({ tex: `A\\times B=${texMat(C)}`, text: `A × B =\n${txtMat(C)}`,
+      steps: [['Rule', `c_{ij}=\\sum_k a_{ik}b_{kj}`], ['Example: c₁₁', `c_{11}=${ex}=${texNum(C[0][0])}`], ['Product', texMat(C)]] });
+  },
+  eig() {
+    const A = readMat('A'), c = charPoly(A);
+    let vals = math.eigs(A).values; if (vals.toArray) vals = vals.toArray();
+    const ev = vals.map((v, i) => `\\lambda_{${i + 1}}=${texNum(v)}`).join(',\\;');
+    show({ tex: ev, text: vals.map((v, i) => `λ${i + 1} = ${fmt(v)}`).join('\n'),
+      steps: [['Characteristic equation', `\\det(A-\\lambda I)=${polyTex(c, '\\lambda')}=0`], ['Sum of eigenvalues equals trace', `\\operatorname{tr}A=${texNum(math.trace(A))}`], ['Product equals determinant', `\\det A=${texNum(math.det(A))}`]] });
+  },
+
+  /* --- Calculus --- */
+  integral() {
+    const { s, node, f } = compileF(), a = num('la'), b = num('lb'), N = CONFIG.simpsonN, h = (b - a) / N;
+    let S = f(a) + f(b), T = (f(a) + f(b)) / 2;
+    for (let i = 1; i < N; i++) { const y = f(a + i * h); S += (i % 2 ? 4 : 2) * y; T += y; }
+    S *= h / 3; T *= h;
+    show({ tex: `\\int_{${texNum(a)}}^{${texNum(b)}} ${node.toTex({ parenthesis: 'auto' })}\\,dx \\approx ${texNum(S)}`, text: `∫ ${s} dx from ${fmt(a)} to ${fmt(b)} ≈ ${fmt(S)}`,
+      steps: [['Step size', `h=\\frac{b-a}{n}=\\frac{${texNum(b)}-${texNum(a)}}{${N}}=${texNum(h)}`], ["Simpson's rule", `\\int_a^b f\\,dx\\approx\\frac{h}{3}\\left[f_0+4\\sum f_{odd}+2\\sum f_{even}+f_n\\right]=${texNum(S)}`],
+        ['Trapezoid cross-check', `T_n=${texNum(T)},\\quad |S_n-T_n|=${texNum(Math.abs(S - T))}`]] });
+  },
+  deriv() {
+    const { s, node, f } = compileF(), c = num('dc'); let val, sym = null;
+    try { const d = math.derivative(node, 'x'); val = d.evaluate({ x: c }); sym = d.toTex({ parenthesis: 'auto' }); } catch (e) { val = NaN; }
+    if (typeof val !== 'number' || !isFinite(val)) {      // numeric fallback: 5-point central difference
+      const h = 1e-3 * Math.max(1, Math.abs(c));
+      val = (8 * (f(c + h) - f(c - h)) - (f(c + 2 * h) - f(c - 2 * h))) / (12 * h);
+      if (!isFinite(val)) throw new Error('Derivative is undefined at this point.');
+    }
+    show({ tex: `\\left.\\frac{d}{dx}\\left[${node.toTex({ parenthesis: 'auto' })}\\right]\\right|_{x=${texNum(c)}}=${texNum(val)}`, text: `f'(${fmt(c)}) = ${fmt(val)}  for f(x) = ${s}`,
+      steps: [sym ? ["Symbolic derivative f'(x)", `f'(x)=${sym}`] : ['Method', `\\text{5-point central difference}`], ['Evaluate at x = c', `f'(${texNum(c)})=${texNum(val)}`]] });
+  },
+  roots() {
+    const q = state.deg === 3, ids = q ? ['qa', 'qb', 'qc', 'qd'] : ['qa', 'qb', 'qc'], co = ids.map(num);
+    if (co[0] === 0) throw new Error('Leading coefficient a must be non-zero.');
+    const r = math.polynomialRoot(...co.slice().reverse());
+    const [a, b, c, d] = co;
+    const D = q ? 18 * a * b * c * d - 4 * b ** 3 * d + b * b * c * c - 4 * a * c ** 3 - 27 * a * a * d * d : b * b - 4 * a * c;
+    const nature = q ? (D > 0 ? 'three distinct real roots' : D < 0 ? 'one real root and a complex-conjugate pair' : 'a repeated root') : (D > 0 ? 'two distinct real roots' : D < 0 ? 'two complex-conjugate roots' : 'one repeated real root');
+    show({ tex: r.map((v, i) => `x_{${i + 1}}=${texNum(v)}`).join(',\\;'), text: r.map((v, i) => `x${i + 1} = ${fmt(v)}`).join('\n'),
+      steps: [['Equation', `${polyTex(co, 'x')}=0`], ['Discriminant', `\\Delta=${texNum(D)}`], ['Nature of roots', `\\text{${nature}}`]] });
+  },
+
+  /* --- Complex & vectors --- */
+  p2r() {
+    const r = num('pr'), t = num('pt'), a = r * Math.cos(toRad(t)), b = r * Math.sin(toRad(t));
+    show({ tex: `${texNum(r)}\\angle ${texNum(t)}${unitTex()}=${texNum(math.complex(a, b))}`, text: `${fmt(r)}∠${fmt(t)} = ${fmt(math.complex(a, b))}`,
+      steps: [['Formulas', `a=r\\cos\\theta,\\quad b=r\\sin\\theta`], ['Substitute', `a=${texNum(a)},\\quad b=${texNum(b)}`]] });
+  },
+  r2p() {
+    const a = num('ra'), b = num('rb'); if (a === 0 && b === 0) throw new Error('The angle of 0 + 0i is undefined.');
+    const r = Math.hypot(a, b), t = fromRad(Math.atan2(b, a));
+    show({ tex: `${texNum(math.complex(a, b))}=${texNum(r)}\\angle ${texNum(t)}${unitTex()}`, text: `${fmt(math.complex(a, b))} = ${fmt(r)}∠${fmt(t)}${state.angle === 'deg' ? '°' : ' rad'}`,
+      steps: [['Magnitude', `r=\\sqrt{a^2+b^2}=${texNum(r)}`], ['Angle (quadrant-aware)', `\\theta=\\operatorname{atan2}(b,a)=${texNum(t)}${unitTex()}`]] });
+  },
+  vec() {
+    const u = ['ux', 'uy', 'uz'].map(num), v = ['vx', 'vy', 'vz'].map(num);
+    const dot = math.dot(u, v), cr = math.cross(u, v), nu = math.norm(u), nv = math.norm(v);
+    const col = M => `\\begin{bmatrix}${M.map(texNum).join('\\\\')}\\end{bmatrix}`;
+    const steps = [['Dot product', `\\mathbf u\\cdot\\mathbf v=u_xv_x+u_yv_y+u_zv_z=${texNum(dot)}`], ['Cross product', `\\mathbf u\\times\\mathbf v=${col(cr)}`], ['Magnitudes', `|\\mathbf u|=${texNum(nu)},\\;|\\mathbf v|=${texNum(nv)}`]];
+    if (nu && nv) steps.push(['Angle between vectors', `\\theta=\\cos^{-1}\\frac{\\mathbf u\\cdot\\mathbf v}{|\\mathbf u||\\mathbf v|}=${texNum(fromRad(Math.acos(Math.max(-1, Math.min(1, dot / (nu * nv))))))}${unitTex()}`]);
+    show({ tex: `\\mathbf u\\cdot\\mathbf v=${texNum(dot)},\\;\\;\\mathbf u\\times\\mathbf v=${col(cr)}`, text: `u · v = ${fmt(dot)}\nu × v = (${cr.map(fmt).join(', ')})`, steps });
+  },
+
+  /* --- Scientific --- */
+  key(b) {
+    const k = b.dataset.k, el = $id('sci');
+    if (k === '=') return calcSci();
+    if (k === 'AC') el.value = '';
+    else if (k === 'DEL') { const s = el.selectionStart, e = el.selectionEnd; if (s !== e) el.setRangeText('', s, e, 'end'); else if (s > 0) el.setRangeText('', s - 1, s, 'end'); }
+    else el.setRangeText(k, el.selectionStart, el.selectionEnd, 'end');
+    preview();
+  }
+};
+function calcSci() {
+  const expr = $id('sci').value.trim(); if (!expr) throw new Error('Enter an expression first.');
+  const node = math.parse(expr); let res = node.evaluate(sciScope());
+  if (typeof res === 'number') {
+    if (!isFinite(res)) throw new Error('Math error: division by zero or undefined result.');
+    if (/tan/.test(expr) && Math.abs(res) > 1e14) throw new Error('Undefined: tan at an odd multiple of 90°.');
+    if (Math.abs(res) < 1e-14) res = 0;
+  } else if (math.isComplex(res)) {
+    if (!isFinite(res.re) || !isFinite(res.im)) throw new Error('Math error: undefined result.');
+  } else throw new Error('Expression did not produce a number.');
+  state.ans = res;
+  show({ tex: `${node.toTex({ parenthesis: 'auto' })}=${texNum(res)}`, text: `${expr} = ${fmt(res)}`,
+    steps: [['Parsed expression', node.toTex({ parenthesis: 'auto' })], ['Angle mode', `\\text{${state.angle.toUpperCase()}}`], ['Value', texNum(res)]] });
+}
+
+/* ---------- Init: wrap actions with error toasts, wire events ---------- */
+Object.keys(act).forEach(k => { const fn = act[k]; act[k] = b => { try { fn(b); } catch (e) { toast(String(e.message || e).replace(/^Error:\s*/, ''), 'err'); } }; });
+document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) act[b.dataset.act]?.(b); });
+document.addEventListener('input', preview);
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sci') { try { calcSci(); } catch (err) { toast(String(err.message).replace(/^Error:\s*/, ''), 'err'); } } });
+$id('buyLink').href = CONFIG.buyUrl;
+render();
+</script>
+</body>
+</html>
